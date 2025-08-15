@@ -21,35 +21,6 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 🚀 MOBILE OPTIMIZATION: Compression and caching
-app.use((req, res, next) => {
-    // Mobile detection
-    const userAgent = req.headers['user-agent'] || '';
-    const isMobile = /Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-    
-    // Set mobile flag
-    req.isMobile = isMobile;
-    
-    // Aggressive caching for mobile
-    if (req.url.includes('/api/')) {
-        // API - short cache
-        res.setHeader('Cache-Control', 'public, max-age=30');
-    } else if (req.url.includes('/uploads/')) {
-        // Images - long cache
-        res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
-    } else if (req.url === '/' || req.url.endsWith('.html')) {
-        // HTML - short cache
-        res.setHeader('Cache-Control', 'public, max-age=300');
-    }
-    
-    // Compression headers
-    if (req.headers['accept-encoding'] && req.headers['accept-encoding'].includes('gzip')) {
-        res.setHeader('Content-Encoding', 'gzip');
-    }
-    
-    next();
-});
-
 // Create upload directories
 async function createUploadDirectories() {
     try {
@@ -95,6 +66,7 @@ const uploadHero = multer({
 });
 
 // Serve static files
+app.use(express.static(__dirname));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Initialize data files
@@ -175,79 +147,35 @@ async function writeHeroBackground(data) {
     return data;
 }
 
-// 🚀 MOBILE: Ultra-fast homepage route
-app.get('/', async (req, res) => {
-    try {
-        // Read the ultra-fast HTML file
-        const htmlPath = path.join(__dirname, 'index.html');
-        let html = await fs.readFile(htmlPath, 'utf8');
-        
-        // For mobile: minimize HTML further
-        if (req.isMobile) {
-            html = html
-                .replace(/\s+/g, ' ')  // Collapse whitespace
-                .replace(/>\s+</g, '><')  // Remove spaces between tags
-                .replace(/<!--[\s\S]*?-->/g, '')  // Remove comments
-                .trim();
-        }
-        
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send(html);
-        
-    } catch (error) {
-        console.error('Error serving homepage:', error);
-        res.status(500).send('Server error');
-    }
-});
-
-// 🚀 MOBILE: Optimized API routes with minimal response
+// API Routes
 app.get('/api/status', async (req, res) => {
     try {
         const statusData = await readStatus();
-        
-        // Mobile: Send only essential data
-        const response = req.isMobile ? {
-            status: statusData.status,
-            notice: statusData.notice || ''
-        } : statusData;
-        
-        res.json(response);
+        res.json(statusData);
     } catch (error) {
-        res.status(500).json({ error: 'Failed' });
+        res.status(500).json({ error: 'Failed to get status' });
     }
 });
 
 app.get('/api/gallery', async (req, res) => {
     try {
         const galleryData = await readGallery();
-        
-        // Mobile: Limit to 3 images max for speed
-        const images = req.isMobile ? 
-            (galleryData.images || []).slice(0, 3) : 
-            (galleryData.images || []);
-            
-        res.json({ images });
+        res.json(galleryData);
     } catch (error) {
-        res.status(500).json({ error: 'Failed', images: [] });
+        res.status(500).json({ error: 'Failed to get gallery' });
     }
 });
 
 app.get('/api/hero-background', async (req, res) => {
     try {
         const heroData = await readHeroBackground();
-        
-        // Mobile: Skip hero background for speed
-        if (req.isMobile) {
-            return res.status(204).send();
-        }
-        
         res.json(heroData);
     } catch (error) {
-        res.status(500).json({ error: 'Failed' });
+        res.status(500).json({ error: 'Failed to get hero background' });
     }
 });
 
-// Upload routes (unchanged but with mobile awareness)
+// Upload routes
 app.post('/admin/upload-gallery', uploadGallery.single('image'), async (req, res) => {
     try {
         if (req.body.password !== ADMIN_PASSWORD) {
@@ -322,7 +250,7 @@ app.post('/admin/update-status', async (req, res) => {
     }
 });
 
-// Admin page (unchanged)
+// Admin page
 app.get('/admin', async (req, res) => {
     try {
         const statusData = await readStatus();
@@ -405,6 +333,21 @@ app.get('/admin', async (req, res) => {
             ` : '<p>Gallery Full</p>'}
         </div>
 
+        <div class="section">
+            <h2>Hero Background</h2>
+            <form method="POST" action="/admin/upload-hero" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label>Password:</label>
+                    <input type="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label>Background Image:</label>
+                    <input type="file" name="image" accept="image/*" required>
+                </div>
+                <button type="submit">Upload Background</button>
+            </form>
+        </div>
+
         <p><a href="/">← Back to Site</a></p>
     </div>
 </body>
@@ -416,13 +359,9 @@ app.get('/admin', async (req, res) => {
     }
 });
 
-// Health check
+// Health check for Render
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        mobile: req.isMobile,
-        timestamp: new Date().toISOString() 
-    });
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Start server
@@ -432,9 +371,9 @@ async function startServer() {
         await initializeDataFiles();
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 ULTRA-FAST Mobile Server running on port ${PORT}`);
-            console.log(`📱 Mobile optimization enabled`);
-            console.log(`⚡ Aggressive caching enabled`);
+            console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+            console.log(`⚙️ Admin panel: http://localhost:${PORT}/admin`);
         });
     } catch (error) {
         console.error('❌ Failed to start server:', error);
