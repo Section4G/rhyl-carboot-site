@@ -1,0 +1,21 @@
+{
+  "name": "rhyl-carboot-render",
+  "version": "1.0.0",
+  "description": "Rhyl Car Boot Sale website deployed on Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["car-boot", "rhyl", "render"],
+  "author": "Rhyl Showfield Car Boot",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
